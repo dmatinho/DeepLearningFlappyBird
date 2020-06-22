@@ -1,28 +1,42 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
+import os.path
+dir = os.path.dirname(__file__)
+os.chdir(dir)
+with open('assets/sprites/0.png') as f:
+    print(f)
+
 import tensorflow as tf
+#import tensorflow.compat.v1 as tf
 import cv2
 import sys
-sys.path.append("game/")
+sys.path.append("C:/Users/danie/OneDrive/Documents/bird2/src")
 import wrapped_flappy_bird as game
 import random
 import numpy as np
 from collections import deque
+import csv
+
+tf.compat.v1.disable_eager_execution()
 
 GAME = 'bird' # the name of the game being played for log files
 ACTIONS = 2 # number of valid actions
 GAMMA = 0.99 # decay rate of past observations
-OBSERVE = 100000. # timesteps to observe before training
-EXPLORE = 2000000. # frames over which to anneal epsilon
+OBSERVE = 5000. # timesteps to observe before training
+# EXPLORE = 2000000. # frames over which to anneal epsilon
+EXPLORE = 3000000.
 FINAL_EPSILON = 0.0001 # final value of epsilon
-INITIAL_EPSILON = 0.0001 # starting value of epsilon
+# INITIAL_EPSILON = 0.0001 # starting value of epsilon
+INITIAL_EPSILON = 0.1
 REPLAY_MEMORY = 50000 # number of previous transitions to remember
 BATCH = 32 # size of minibatch
 FRAME_PER_ACTION = 1
+training_score = []
+
 
 def weight_variable(shape):
-    initial = tf.truncated_normal(shape, stddev = 0.01)
+    initial = tf.random.truncated_normal(shape, stddev = 0.01)
     return tf.Variable(initial)
 
 def bias_variable(shape):
@@ -30,6 +44,8 @@ def bias_variable(shape):
     return tf.Variable(initial)
 
 def conv2d(x, W, stride):
+    #x = tf.cast(x, tf.float32)
+    #x=tf.strings.to_number(x, out_type=tf.dtypes.float32, name=None)
     return tf.nn.conv2d(x, W, strides = [1, stride, stride, 1], padding = "SAME")
 
 def max_pool_2x2(x):
@@ -53,7 +69,7 @@ def createNetwork():
     b_fc2 = bias_variable([ACTIONS])
 
     # input layer
-    s = tf.placeholder("float", [None, 80, 80, 4])
+    s = tf.compat.v1.placeholder(shape=[None, 80, 80, 4], dtype=np.float32)
 
     # hidden layers
     h_conv1 = tf.nn.relu(conv2d(s, W_conv1, 4) + b_conv1)
@@ -77,49 +93,50 @@ def createNetwork():
 
 def trainNetwork(s, readout, h_fc1, sess):
     # define the cost function
-    a = tf.placeholder("float", [None, ACTIONS])
-    y = tf.placeholder("float", [None])
-    readout_action = tf.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
+    a = tf.compat.v1.placeholder(shape=[None, ACTIONS], dtype=np.float32)
+    y = tf.compat.v1.placeholder(shape=[None], dtype=np.float32)
+    readout_action = tf.compat.v1.reduce_sum(tf.multiply(readout, a), reduction_indices=1)
     cost = tf.reduce_mean(tf.square(y - readout_action))
-    train_step = tf.train.AdamOptimizer(1e-6).minimize(cost)
+    train_step = tf.compat.v1.train.AdamOptimizer(1e-6).minimize(cost)
 
-    # open up a game state to communicate with emulator
+    # open up a game state to communicate with emulator.  import wrapped_flappy_bird as game
     game_state = game.GameState()
 
     # store the previous observations in replay memory
     D = deque()
 
-    # printing
-    a_file = open("logs_" + GAME + "/readout.txt", 'w')
-    h_file = open("logs_" + GAME + "/hidden.txt", 'w')
+    # printing GAME = 'bird'
+    a_file = open("C:/Users/danie/OneDrive/Documents/bird2/src/" + GAME + "/readout.txt", 'w')
+    h_file = open("C:/Users/danie/OneDrive/Documents/bird2/src/" + GAME + "/hidden.txt", 'w')
 
     # get the first state by doing nothing and preprocess the image to 80x80x4
+    # (1,0) means do nothing
     do_nothing = np.zeros(ACTIONS)
     do_nothing[0] = 1
-    x_t, r_0, terminal = game_state.frame_step(do_nothing)
-    x_t = cv2.cvtColor(cv2.resize(x_t, (80, 80)), cv2.COLOR_BGR2GRAY)
-    ret, x_t = cv2.threshold(x_t,1,255,cv2.THRESH_BINARY)
+    x_t, r_0, terminal = game_state.frame_step(do_nothing)   # Return: image_data, reward, terminal
+    x_t = cv2.cvtColor(cv2.resize(x_t, (80, 80)), cv2.COLOR_BGR2GRAY) #gray_scale
+    ret, x_t = cv2.threshold(x_t,1,255,cv2.THRESH_BINARY) #only black and white pixels
     s_t = np.stack((x_t, x_t, x_t, x_t), axis=2)
 
     # saving and loading networks
-    saver = tf.train.Saver()
-    sess.run(tf.initialize_all_variables())
+    saver = tf.compat.v1.train.Saver()
+    sess.run(tf.compat.v1.initialize_all_variables())
     checkpoint = tf.train.get_checkpoint_state("saved_networks")
-    if checkpoint and checkpoint.model_checkpoint_path:
-        saver.restore(sess, checkpoint.model_checkpoint_path)
-        print("Successfully loaded:", checkpoint.model_checkpoint_path)
-    else:
-        print("Could not find old network weights")
+    # if checkpoint and checkpoint.model_checkpoint_path:
+    #     saver.restore(sess, checkpoint.model_checkpoint_path)
+    #     print("Successfully loaded:", checkpoint.model_checkpoint_path)
+    # else:
+    #     print("Could not find old network weights")
 
     # start training
     epsilon = INITIAL_EPSILON
     t = 0
     while "flappy bird" != "angry bird":
         # choose an action epsilon greedily
-        readout_t = readout.eval(feed_dict={s : [s_t]})[0]
+        readout_t = readout.eval(feed_dict={s : [s_t]})[0]    #???
         a_t = np.zeros([ACTIONS])
         action_index = 0
-        if t % FRAME_PER_ACTION == 0:
+        if t % FRAME_PER_ACTION == 0: #FRAME_PER_ACTION = 1
             if random.random() <= epsilon:
                 print("----------Random Action----------")
                 action_index = random.randrange(ACTIONS)
@@ -131,7 +148,7 @@ def trainNetwork(s, readout, h_fc1, sess):
             a_t[0] = 1 # do nothing
 
         # scale down epsilon
-        if epsilon > FINAL_EPSILON and t > OBSERVE:
+        if epsilon > FINAL_EPSILON and t > OBSERVE: #OBSERVE = 100000
             epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
 
         # run the selected action and observe next state and reward
@@ -144,13 +161,13 @@ def trainNetwork(s, readout, h_fc1, sess):
 
         # store the transition in D
         D.append((s_t, a_t, r_t, s_t1, terminal))
-        if len(D) > REPLAY_MEMORY:
+        if len(D) > REPLAY_MEMORY:  #REPLAY_MEMORY = 50000
             D.popleft()
 
         # only train if done observing
         if t > OBSERVE:
             # sample a minibatch to train on
-            minibatch = random.sample(D, BATCH)
+            minibatch = random.sample(D, BATCH)  #BATCH = 32 : size of minibatch
 
             # get the batch variables
             s_j_batch = [d[0] for d in minibatch]
@@ -169,7 +186,7 @@ def trainNetwork(s, readout, h_fc1, sess):
                     y_batch.append(r_batch[i] + GAMMA * np.max(readout_j1_batch[i]))
 
             # perform gradient step
-            train_step.run(feed_dict = {
+            train_step.run(feed_dict = {         #train_step = tf.train.AdamOptimizer(1e-6).minimize(cost)
                 y : y_batch,
                 a : a_batch,
                 s : s_j_batch}
@@ -180,8 +197,13 @@ def trainNetwork(s, readout, h_fc1, sess):
         t += 1
 
         # save progress every 10000 iterations
-        if t % 10000 == 0:
-            saver.save(sess, 'saved_networks/' + GAME + '-dqn', global_step = t)
+        if t == 20000:
+            saver.save(sess, 'saved_networks/' + GAME + '-dqnRoy', global_step = t) #sess.run(tf.initialize_all_variables())
+            break
+
+        if True:
+            training_score.append((t, game_state.score))
+
 
         # print info
         state = ""
@@ -203,8 +225,12 @@ def trainNetwork(s, readout, h_fc1, sess):
             cv2.imwrite("logs_tetris/frame" + str(t) + ".png", x_t1)
         '''
 
+    with open('scoresdqn.csv', 'w') as f:
+        writer = csv.writer(f, lineterminator='\n')
+        writer.writerows(training_score)
+
 def playGame():
-    sess = tf.InteractiveSession()
+    sess = tf.compat.v1.InteractiveSession()
     s, readout, h_fc1 = createNetwork()
     trainNetwork(s, readout, h_fc1, sess)
 
