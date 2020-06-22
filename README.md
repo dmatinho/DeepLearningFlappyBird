@@ -28,10 +28,13 @@ Since deep Q-network is trained on the raw pixel values observed from the game s
 
 <img src="./images/preprocess.png" width="450">
 
+### DQN Architecture
+<img src="./images/network.png">
+
 #### In this repository you can find:
 - Q-learning approach
 - DQN approach
-<img src="./images/network.png">
+- Validation
 - Deck of the final presentation
 
 #### Training
