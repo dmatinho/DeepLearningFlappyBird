@@ -4,7 +4,7 @@
 
 
 ## Overview
-This project follows the description of the Deep Q Learning algorithm described in Playing Atari with Deep Reinforcement Learning [2] and shows that this learning algorithm can be further generalized to the notorious Flappy Bird.
+I presented this project presented in a Deep Learning & Image Recognition Class along with Jonathan Huff and Zeyang (Roy) Xie. This project follows the description of the Deep Q Learning algorithm described in Playing Atari with Deep Reinforcement Learning [2] and shows that this learning algorithm can be further generalized to the notorious Flappy Bird.
 
 ## Installation Dependencies:
 * Python 2.7 or 3
